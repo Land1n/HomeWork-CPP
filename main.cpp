@@ -9,7 +9,7 @@ constexpr int FIELD_WIDTH  = 30;
 constexpr int FIELD_HEIGHT = 15;
 constexpr int timeMs       = 500;
 constexpr int obstacles    = 12;
-constexpr bool DEBUG       = true;
+constexpr bool DEBUG       = false;
 
 std::mutex mtx;
 
@@ -156,6 +156,29 @@ int main()
 		};
 	};
 
+	auto functionCounter = [&game,&object_array]() {
+		int score;
+		while(game) {
+			mtx.lock();
+			for( int i = 1; i != obstacles; i++)
+			{
+				if (object_array[0].x != object_array[i].x && object_array[0].y == object_array[i].y){
+					score+=1;
+				}
+				if (object_array[0].x == object_array[i].x && object_array[0].y == object_array[i].y){
+					game = false;
+					std::cout << "Вы проиграли" << std::endl;
+					std::cout << "score: "<< score << std::endl;
+					exit(1);
+				}
+				
+			}
+			std::cout << "score: "<< score << std::endl;
+			mtx.unlock();
+			std::this_thread::sleep_for(std::chrono::milliseconds(timeMs));
+		}
+	};
+	
 	auto functionDraw = [&game,&shift,&object_array]() {
 		draw_loop(game, shift,object_array);
 	};
@@ -176,10 +199,13 @@ int main()
 			mtx.unlock();
 		}
 	};
+
 	std::thread GenerationThread(functionGeneration); // поток для генрации препятствий 
+	std::thread CounterThread(functionCounter); // поток для генрации препятствий 
 	std::thread drawThread(functionDraw); // поток для отрисовки  
 	std::thread cinThread(functionCin); // поток для ввода направления движения
 
+	CounterThread.join();
 	GenerationThread.join();
 	drawThread.join();
 	cinThread.join();
