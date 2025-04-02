@@ -3,19 +3,22 @@
 #include <mutex>
 #include <thread>
 #include <conio.h>
+#include <vector>
 
 constexpr int FIELD_WIDTH  = 30;
-constexpr int FIELD_HEIGHT = 5;
-constexpr int timeMs       = 100;
-constexpr int obstacles    = 3;
+constexpr int FIELD_HEIGHT = 15;
+constexpr int timeMs       = 500;
+constexpr int obstacles    = 12;
+constexpr bool DEBUG       = true;
 
 std::mutex mtx;
 
 struct object
 {
-	const char symbol[4];
+	std::string symbol;
 	int x;
 	int y;
+	~object(){}
 };
 
 
@@ -39,7 +42,7 @@ int update_position(int y)
 
 
 // Функция отрисовки
-void render_frame(const object object_array[obstacles+1])
+void render_frame(object object_array[obstacles+1])
 {
 	std::cout << std::string(FIELD_WIDTH + 2, '-') << std::endl;
 	for (int i = 0; i != FIELD_HEIGHT;i++){
@@ -99,26 +102,59 @@ int main()
 	bool game{true};
 	int shift{0}; //сдвиг
 	object player = {"■", 0, FIELD_HEIGHT-1};
-	object p = {"#", 10, -1};
-	object object_array[obstacles+1] = {player,p};
+
+	object object_array[obstacles] = {player};
 	int obstacles_quantity{1};
 	
-	// auto functionGeneration = [&game,&object_array,&obstacles_quantity]() {
-	// 	while(game) {
-	// 		if (obstacles_quantity != obstacles){
-	// 			int start = 1;
-	// 			int end = 30;
-	// 			std::srand(std::time(0));
-	// 			int x = rand() % (end - start + 1) + start;
-	// 			mtx.lock();
-	// 			object obstacles = {"#",x,0};
-	// 			object_array[obstacles_quantity] = obstacles;
-	// 			obstacles_quantity += 1;
-	// 			mtx.unlock();
-	// 			std::this_thread::sleep_for(std::chrono::milliseconds(timeMs/3));
-	// 		}
-	// 	};
-	// };
+	auto functionGeneration = [&game,&object_array,&obstacles_quantity]() {
+		while(game) {
+			if (DEBUG == true)
+				{			
+					if (obstacles_quantity >= 1)
+					{
+						mtx.lock();
+						
+						std::cout << "[ ";
+						for (object elem : object_array) 
+								std::cout << "( symbol="<< elem.symbol << ", x=" << elem.x << ", y=" << elem.y << " ), ";
+						std::cout << " ]" << std::endl;
+
+						mtx.unlock();
+						std::this_thread::sleep_for(std::chrono::milliseconds(timeMs));
+					}
+				}
+				
+			if (obstacles_quantity != obstacles){
+				int start = 1;
+				int end = 30;
+				mtx.lock();
+				std::srand(std::time(0));
+				int x = rand() % (end - start + 1) + start;
+				object_array[obstacles_quantity].symbol = "#";
+				object_array[obstacles_quantity].x = x;
+				object_array[obstacles_quantity].y = -1;
+				obstacles_quantity += 1;
+				mtx.unlock();
+				std::this_thread::sleep_for(std::chrono::milliseconds(timeMs));
+			}
+
+			if (obstacles_quantity == obstacles){
+				mtx.lock();
+				for( int i = 0; i != obstacles_quantity; i++){
+					if (object_array[i].y > FIELD_HEIGHT){
+						int start = 1;
+						int end = 30;
+						std::srand(std::time(0));
+						int x = rand() % (end - start + 1) + start;
+						object_array[i].x = x;
+						object_array[i].y = -1;
+					}
+				}
+				mtx.unlock();
+				std::this_thread::sleep_for(std::chrono::milliseconds(200));
+			}
+		};
+	};
 
 	auto functionDraw = [&game,&shift,&object_array]() {
 		draw_loop(game, shift,object_array);
@@ -134,17 +170,17 @@ int main()
 			mtx.lock();
 			if(code == 99) {
 				game = false;
-				break; //игра закончена
+				exit(1); //игра закончена
 			}
 			handle_input(code, shift);
 			mtx.unlock();
 		}
 	};
-	// std::thread GenerationThread(functionGeneration); // поток для препятствий 
-	std::thread drawThread(functionDraw); // поток для отрисовки персонажа
+	std::thread GenerationThread(functionGeneration); // поток для генрации препятствий 
+	std::thread drawThread(functionDraw); // поток для отрисовки  
 	std::thread cinThread(functionCin); // поток для ввода направления движения
 
-	// GenerationThread.join();
+	GenerationThread.join();
 	drawThread.join();
 	cinThread.join();
 
